@@ -1,0 +1,935 @@
+```html
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mesaj</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #f2f2f2;
+    color: #222;
+}
+
+header {
+    background: #075e54;
+    color: white;
+    padding: 18px;
+    text-align: center;
+    font-size: 22px;
+    font-weight: bold;
+}
+
+.menu {
+    display: flex;
+    gap: 10px;
+    padding: 12px;
+    background: white;
+}
+
+.menu button {
+    flex: 1;
+    border: none;
+    padding: 12px;
+    border-radius: 10px;
+    background: #ddd;
+    font-size: 16px;
+}
+
+.menu button.aktif {
+    background: #075e54;
+    color: white;
+}
+
+.sayfa {
+    display: none;
+    max-width: 800px;
+    margin: auto;
+    padding: 15px;
+}
+
+.sayfa.aktif {
+    display: block;
+}
+
+/* İSİM */
+
+input {
+    width: 100%;
+    padding: 13px;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    font-size: 16px;
+    margin-bottom: 10px;
+}
+
+textarea {
+    width: 100%;
+    min-height: 80px;
+    resize: vertical;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    padding: 12px;
+    font-size: 16px;
+    font-family: Arial, sans-serif;
+}
+
+textarea:focus,
+input:focus {
+    outline: none;
+    border-color: #075e54;
+}
+
+button.gonder {
+    width: 100%;
+    margin-top: 8px;
+    padding: 13px;
+    border: none;
+    border-radius: 10px;
+    background: #075e54;
+    color: white;
+    font-size: 16px;
+}
+
+button:disabled {
+    background: #999 !important;
+}
+
+/* MESAJLAR */
+
+.mesajlar {
+    margin-top: 15px;
+}
+
+.mesaj {
+    background: #dcf8c6;
+    padding: 12px;
+    border-radius: 12px;
+    margin-bottom: 10px;
+    white-space: pre-wrap;
+}
+
+.cevap {
+    background: white;
+    padding: 12px;
+    border-radius: 12px;
+    margin-bottom: 10px;
+    border: 1px solid #ddd;
+    white-space: pre-wrap;
+}
+
+.tarih {
+    font-size: 11px;
+    color: #888;
+    margin-top: 6px;
+}
+
+/* ADMIN */
+
+.admin-card {
+    background: white;
+    padding: 15px;
+    margin-bottom: 15px;
+    border-radius: 12px;
+    box-shadow: 0 2px 7px rgba(0,0,0,.08);
+}
+
+.kullanici {
+    font-weight: bold;
+    color: #075e54;
+    margin-bottom: 10px;
+}
+
+.gelen {
+    background: #eee;
+    padding: 12px;
+    border-radius: 10px;
+    white-space: pre-wrap;
+    margin-bottom: 10px;
+}
+
+.admin-cevap {
+    background: #dcf8c6;
+    padding: 12px;
+    border-radius: 10px;
+    white-space: pre-wrap;
+    margin-bottom: 10px;
+}
+
+.admin-card textarea {
+    min-height: 70px;
+}
+
+.bos {
+    text-align: center;
+    color: #777;
+    padding: 30px;
+}
+
+h3 {
+    margin-top: 5px;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+    💬 Mesaj
+</header>
+
+
+<!-- MENÜ -->
+
+<div class="menu">
+
+    <button
+        id="mesajButon"
+        class="aktif"
+        onclick="sayfaAc('mesaj')">
+        📩 Mesaj Gönder
+    </button>
+
+    <button
+        id="adminButon"
+        onclick="sayfaAc('admin')">
+        🔐 Admin
+    </button>
+
+</div>
+
+
+<!-- ========================= -->
+<!-- MESAJ GÖNDERME SAYFASI -->
+<!-- ========================= -->
+
+<div id="mesajSayfasi" class="sayfa aktif">
+
+    <h3>Mesaj Gönder</h3>
+
+    <input
+        id="isim"
+        placeholder="İsmin"
+        autocomplete="off">
+
+    <textarea
+        id="mesaj"
+        placeholder="Mesajını yaz..."
+        autocomplete="off"></textarea>
+
+    <button
+        class="gonder"
+        id="mesajGonder"
+        onclick="mesajGonder()">
+        Gönder
+    </button>
+
+    <div id="kullaniciMesajlari" class="mesajlar">
+        <div class="bos">
+            Henüz mesaj yok.
+        </div>
+    </div>
+
+</div>
+
+
+<!-- ========================= -->
+<!-- ADMIN SAYFASI -->
+<!-- ========================= -->
+
+<div id="adminSayfasi" class="sayfa">
+
+    <h3>Admin Mesajları</h3>
+
+    <div id="adminMesajlari">
+        <div class="bos">
+            Mesajlar yükleniyor...
+        </div>
+    </div>
+
+</div>
+
+
+<script>
+
+/* ================================= */
+/* SUPABASE AYARLARI */
+/* ================================= */
+
+var SUPABASE_URL =
+"https://expimhpykwokmdfjaoao.supabase.co/rest/v1";
+
+var SUPABASE_KEY =
+"sb_publishable_h4XZ3Fen_NE632-RQC-lDQ_vNN4SfsL";
+
+
+/* ================================= */
+/* GÜVENLİ YAZI */
+/* ================================= */
+
+function guvenli(text) {
+
+    if (!text) return "";
+
+    return String(text)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+
+/* ================================= */
+/* SAYFA DEĞİŞTİRME */
+/* ================================= */
+
+function sayfaAc(sayfa) {
+
+    document
+        .getElementById("mesajSayfasi")
+        .classList.remove("aktif");
+
+    document
+        .getElementById("adminSayfasi")
+        .classList.remove("aktif");
+
+    document
+        .getElementById("mesajButon")
+        .classList.remove("aktif");
+
+    document
+        .getElementById("adminButon")
+        .classList.remove("aktif");
+
+
+    if (sayfa === "mesaj") {
+
+        document
+            .getElementById("mesajSayfasi")
+            .classList.add("aktif");
+
+        document
+            .getElementById("mesajButon")
+            .classList.add("aktif");
+
+        kullaniciMesajlariniGetir();
+
+    }
+
+
+    if (sayfa === "admin") {
+
+        document
+            .getElementById("adminSayfasi")
+            .classList.add("aktif");
+
+        document
+            .getElementById("adminButon")
+            .classList.add("aktif");
+
+        adminMesajlariniGetir();
+
+    }
+
+}
+
+
+/* ================================= */
+/* KULLANICI İSMİ */
+/* ================================= */
+
+var kayitliIsim =
+localStorage.getItem("kullanici_ismi");
+
+if (kayitliIsim) {
+
+    document.getElementById("isim").value =
+        kayitliIsim;
+
+}
+
+
+/* ================================= */
+/* MESAJ GÖNDER */
+/* ================================= */
+
+async function mesajGonder() {
+
+    var isim =
+        document.getElementById("isim").value.trim();
+
+    var mesajKutusu =
+        document.getElementById("mesaj");
+
+    var mesaj =
+        mesajKutusu.value.trim();
+
+    var buton =
+        document.getElementById("mesajGonder");
+
+
+    if (!isim) {
+
+        alert("Lütfen ismini yaz.");
+
+        return;
+    }
+
+
+    if (!mesaj) {
+
+        alert("Lütfen mesajını yaz.");
+
+        return;
+    }
+
+
+    localStorage.setItem(
+        "kullanici_ismi",
+        isim
+    );
+
+
+    buton.disabled = true;
+    buton.innerText = "Gönderiliyor...";
+
+
+    try {
+
+        var sonuc = await fetch(
+            SUPABASE_URL + "/messages2",
+            {
+                method: "POST",
+
+                headers: {
+
+                    "apikey":
+                        SUPABASE_KEY,
+
+                    "Authorization":
+                        "Bearer " + SUPABASE_KEY,
+
+                    "Content-Type":
+                        "application/json",
+
+                    "Prefer":
+                        "return=minimal"
+                },
+
+                body: JSON.stringify({
+
+                    username: isim,
+
+                    message: mesaj
+
+                })
+            }
+        );
+
+
+        if (!sonuc.ok) {
+
+            var hata =
+                await sonuc.text();
+
+            alert(
+                "Mesaj gönderilemedi:\n\n" +
+                hata
+            );
+
+            return;
+        }
+
+
+        mesajKutusu.value = "";
+
+        kullaniciMesajlariniGetir();
+
+
+    } catch (error) {
+
+        alert(
+            "Bağlantı hatası:\n\n" +
+            error
+        );
+
+    } finally {
+
+        buton.disabled = false;
+        buton.innerText = "Gönder";
+
+    }
+
+}
+
+
+/* ================================= */
+/* KULLANICININ MESAJLARI */
+/* ================================= */
+
+async function kullaniciMesajlariniGetir() {
+
+    var isim =
+        document.getElementById("isim").value.trim();
+
+
+    if (!isim) return;
+
+
+    try {
+
+        var sonuc = await fetch(
+
+            SUPABASE_URL +
+            "/messages2?select=*" +
+            "&username=eq." +
+            encodeURIComponent(isim) +
+            "&order=created_at.asc",
+
+            {
+
+                headers: {
+
+                    "apikey":
+                        SUPABASE_KEY,
+
+                    "Authorization":
+                        "Bearer " +
+                        SUPABASE_KEY
+
+                }
+
+            }
+
+        );
+
+
+        if (!sonuc.ok) return;
+
+
+        var mesajlar =
+            await sonuc.json();
+
+
+        var alan =
+            document.getElementById(
+                "kullaniciMesajlari"
+            );
+
+
+        alan.innerHTML = "";
+
+
+        if (mesajlar.length === 0) {
+
+            alan.innerHTML =
+                '<div class="bos">Henüz mesaj yok.</div>';
+
+            return;
+        }
+
+
+        mesajlar.forEach(function(m) {
+
+            var div =
+                document.createElement("div");
+
+
+            div.innerHTML =
+
+                '<div class="mesaj">' +
+                guvenli(m.message) +
+                '<div class="tarih">' +
+                new Date(
+                    m.created_at
+                ).toLocaleString("tr-TR") +
+                '</div>' +
+                '</div>';
+
+
+            if (m.reply) {
+
+                div.innerHTML +=
+
+                    '<div class="cevap">' +
+                    '<b>Yanıt:</b><br>' +
+                    guvenli(m.reply) +
+                    '</div>';
+
+            }
+
+
+            alan.appendChild(div);
+
+        });
+
+
+    } catch (error) {
+
+        console.log(error);
+
+    }
+
+}
+
+
+/* ================================= */
+/* ADMIN MESAJLARI */
+/* ================================= */
+
+async function adminMesajlariniGetir() {
+
+    try {
+
+        var sonuc = await fetch(
+
+            SUPABASE_URL +
+            "/messages2?select=*&order=created_at.desc",
+
+            {
+
+                headers: {
+
+                    "apikey":
+                        SUPABASE_KEY,
+
+                    "Authorization":
+                        "Bearer " +
+                        SUPABASE_KEY
+
+                }
+
+            }
+
+        );
+
+
+        if (!sonuc.ok) {
+
+            console.log(
+                await sonuc.text()
+            );
+
+            return;
+        }
+
+
+        var mesajlar =
+            await sonuc.json();
+
+
+        var alan =
+            document.getElementById(
+                "adminMesajlari"
+            );
+
+
+        /*
+        Mevcut kartları silmiyoruz.
+        Böylece cevap yazarken
+        textarea kaybolmuyor.
+        */
+
+        mesajlar.forEach(function(m) {
+
+            var mevcut =
+                document.getElementById(
+                    "admin-" + m.id
+                );
+
+
+            if (mevcut) {
+
+                /*
+                Sadece cevap bölümünü güncelle.
+                */
+
+                var cevapAlani =
+                    mevcut.querySelector(
+                        ".admin-cevap-alani"
+                    );
+
+
+                if (m.reply && cevapAlani) {
+
+                    cevapAlani.innerHTML =
+
+                        '<div class="admin-cevap">' +
+                        '<b>Sen:</b><br>' +
+                        guvenli(m.reply) +
+                        '</div>';
+
+                }
+
+
+                return;
+            }
+
+
+            /*
+            Yeni kart
+            */
+
+            var kart =
+                document.createElement("div");
+
+            kart.className =
+                "admin-card";
+
+            kart.id =
+                "admin-" + m.id;
+
+
+            var cevapHTML = "";
+
+            if (m.reply) {
+
+                cevapHTML =
+
+                    '<div class="admin-cevap">' +
+                    '<b>Sen:</b><br>' +
+                    guvenli(m.reply) +
+                    '</div>';
+
+            }
+
+
+            kart.innerHTML = `
+
+                <div class="kullanici">
+                    👤 ${guvenli(m.username)}
+                </div>
+
+                <div class="gelen">
+                    ${guvenli(m.message)}
+                </div>
+
+                <div class="admin-cevap-alani">
+                    ${cevapHTML}
+                </div>
+
+                <textarea
+                    id="admin-input-${m.id}"
+                    placeholder="Cevap yaz..."
+                    autocomplete="off"></textarea>
+
+                <button
+                    class="gonder"
+                    id="admin-button-${m.id}"
+                    onclick="adminCevapla(${m.id})">
+                    Yanıtla
+                </button>
+
+                <div class="tarih">
+                    ${new Date(
+                        m.created_at
+                    ).toLocaleString("tr-TR")}
+                </div>
+            `;
+
+
+            alan.appendChild(kart);
+
+        });
+
+
+    } catch (error) {
+
+        console.log(error);
+
+    }
+
+}
+
+
+/* ================================= */
+/* ADMIN CEVAPLA */
+/* ================================= */
+
+async function adminCevapla(id) {
+
+    var textarea =
+        document.getElementById(
+            "admin-input-" + id
+        );
+
+
+    var buton =
+        document.getElementById(
+            "admin-button-" + id
+        );
+
+
+    if (!textarea) return;
+
+
+    var cevap =
+        textarea.value.trim();
+
+
+    if (!cevap) {
+
+        alert("Lütfen cevap yaz.");
+
+        return;
+    }
+
+
+    buton.disabled = true;
+    buton.innerText =
+        "Gönderiliyor...";
+
+
+    try {
+
+        var sonuc = await fetch(
+
+            SUPABASE_URL +
+            "/messages2?id=eq." +
+            id,
+
+            {
+
+                method: "PATCH",
+
+                headers: {
+
+                    "apikey":
+                        SUPABASE_KEY,
+
+                    "Authorization":
+                        "Bearer " +
+                        SUPABASE_KEY,
+
+                    "Content-Type":
+                        "application/json",
+
+                    "Prefer":
+                        "return=minimal"
+
+                },
+
+                body: JSON.stringify({
+
+                    reply: cevap
+
+                })
+
+            }
+
+        );
+
+
+        if (!sonuc.ok) {
+
+            var hata =
+                await sonuc.text();
+
+            alert(
+                "Yanıt gönderilemedi:\n\n" +
+                hata
+            );
+
+            return;
+        }
+
+
+        /*
+        Başarılı gönderim
+        */
+
+        var kart =
+            document.getElementById(
+                "admin-" + id
+            );
+
+
+        var cevapAlani =
+            kart.querySelector(
+                ".admin-cevap-alani"
+            );
+
+
+        cevapAlani.innerHTML =
+
+            '<div class="admin-cevap">' +
+            '<b>Sen:</b><br>' +
+            guvenli(cevap) +
+            '</div>';
+
+
+        textarea.value = "";
+
+
+    } catch (error) {
+
+        alert(
+            "Bağlantı hatası:\n\n" +
+            error
+        );
+
+    } finally {
+
+        buton.disabled = false;
+        buton.innerText = "Yanıtla";
+
+    }
+
+}
+
+
+/* ================================= */
+/* 30 SANİYEDE BİR KONTROL */
+/* ================================= */
+
+setInterval(function() {
+
+    /*
+    Hangi bölüm açıksa sadece onu yenile.
+    */
+
+    if (
+        document
+            .getElementById("mesajSayfasi")
+            .classList.contains("aktif")
+    ) {
+
+        kullaniciMesajlariniGetir();
+
+    }
+
+
+    if (
+        document
+            .getElementById("adminSayfasi")
+            .classList.contains("aktif")
+    ) {
+
+        adminMesajlariniGetir();
+
+    }
+
+}, 30000);
+
+
+/* İlk açılış */
+
+if (kayitliIsim) {
+
+    kullaniciMesajlariniGetir();
+
+}
+
+</script>
+
+</body>
+</html>
+```
