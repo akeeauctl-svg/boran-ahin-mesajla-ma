@@ -1,0 +1,403 @@
+```html
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Mesajlar</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #f2f2f2;
+}
+
+header {
+    background: #075e54;
+    color: white;
+    padding: 18px;
+    font-size: 22px;
+    font-weight: bold;
+}
+
+#mesajlar {
+    padding: 15px;
+    max-width: 800px;
+    margin: auto;
+}
+
+.card {
+    background: white;
+    border-radius: 12px;
+    padding: 15px;
+    margin-bottom: 15px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.kullanici {
+    font-weight: bold;
+    color: #075e54;
+    margin-bottom: 10px;
+}
+
+.gelen {
+    background: #eeeeee;
+    padding: 12px;
+    border-radius: 10px;
+    margin-bottom: 10px;
+    white-space: pre-wrap;
+}
+
+.cevap {
+    background: #dcf8c6;
+    padding: 12px;
+    border-radius: 10px;
+    margin-bottom: 10px;
+    white-space: pre-wrap;
+}
+
+textarea {
+    width: 100%;
+    min-height: 80px;
+    resize: vertical;
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    padding: 12px;
+    font-size: 16px;
+    font-family: Arial, sans-serif;
+    outline: none;
+}
+
+textarea:focus {
+    border-color: #075e54;
+}
+
+button {
+    width: 100%;
+    margin-top: 8px;
+    padding: 12px;
+    border: none;
+    border-radius: 10px;
+    background: #075e54;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #064e47;
+}
+
+button:disabled {
+    background: #999;
+    cursor: not-allowed;
+}
+
+.tarih {
+    color: #888;
+    font-size: 12px;
+    margin-top: 8px;
+}
+
+.bos {
+    text-align: center;
+    color: #777;
+    padding: 30px;
+}
+</style>
+</head>
+
+<body>
+
+<header>
+    📩 Admin Mesajları
+</header>
+
+<div id="mesajlar">
+    <div class="bos">Mesajlar yükleniyor...</div>
+</div>
+
+<script>
+
+var SUPABASE_URL =
+"https://expimhpykwokmdfjaoao.supabase.co/rest/v1";
+
+var SUPABASE_KEY =
+"sb_publishable_h4XZ3Fen_NE632-RQC-lDQ_vNN4SfsL";
+
+
+function guvenli(text) {
+    if (!text) return "";
+
+    return String(text)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+
+/* İlk yüklemede mesajları oluştur */
+async function mesajlariGetir() {
+
+    try {
+
+        const cevap = await fetch(
+            SUPABASE_URL +
+            "/messages2?select=*&order=created_at.desc",
+            {
+                headers: {
+                    "apikey": SUPABASE_KEY,
+                    "Authorization": "Bearer " + SUPABASE_KEY
+                }
+            }
+        );
+
+        if (!cevap.ok) {
+            const hata = await cevap.text();
+            console.log("Supabase hatası:", hata);
+            return;
+        }
+
+        const mesajlar = await cevap.json();
+
+        const alan = document.getElementById("mesajlar");
+
+        /*
+        ÖNEMLİ:
+        Her 5 saniyede textarea'ları yeniden oluşturmuyoruz.
+        Böylece yazdığın cevap kaybolmuyor.
+        */
+
+        mesajlar.forEach(mesaj => {
+
+            let mevcut = document.getElementById(
+                "card-" + mesaj.id
+            );
+
+            if (mevcut) {
+
+                /* Sadece mevcut cevabı güncelle */
+                const cevapAlani =
+                    mevcut.querySelector(".cevap-alani");
+
+                if (cevapAlani) {
+
+                    if (mesaj.reply) {
+                        cevapAlani.innerHTML =
+                            '<div class="cevap">' +
+                            '<b>Sen:</b><br>' +
+                            guvenli(mesaj.reply) +
+                            '</div>';
+                    }
+                }
+
+                return;
+            }
+
+
+            /* Yeni mesaj kartı */
+
+            const card = document.createElement("div");
+
+            card.className = "card";
+
+            card.id = "card-" + mesaj.id;
+
+
+            let cevapHTML = "";
+
+            if (mesaj.reply) {
+
+                cevapHTML =
+                    '<div class="cevap">' +
+                    '<b>Sen:</b><br>' +
+                    guvenli(mesaj.reply) +
+                    '</div>';
+
+            }
+
+
+            card.innerHTML = `
+
+                <div class="kullanici">
+                    👤 ${guvenli(mesaj.username)}
+                </div>
+
+                <div class="gelen">
+                    ${guvenli(mesaj.message)}
+                </div>
+
+                <div class="cevap-alani">
+                    ${cevapHTML}
+                </div>
+
+                <textarea
+                    id="input-${mesaj.id}"
+                    placeholder="Cevap yaz..."
+                ></textarea>
+
+                <button
+                    id="button-${mesaj.id}"
+                    onclick="cevapla(${mesaj.id})"
+                >
+                    Gönder
+                </button>
+
+                <div class="tarih">
+                    ${new Date(mesaj.created_at).toLocaleString("tr-TR")}
+                </div>
+            `;
+
+
+            /*
+            Yeni mesajı en üste ekle
+            */
+            alan.appendChild(card);
+
+        });
+
+    } catch (error) {
+
+        console.log("Hata:", error);
+
+    }
+}
+
+
+
+/* CEVAP GÖNDER */
+
+async function cevapla(id) {
+
+    const textarea =
+        document.getElementById("input-" + id);
+
+    const button =
+        document.getElementById("button-" + id);
+
+
+    if (!textarea) return;
+
+
+    const cevap = textarea.value.trim();
+
+
+    if (!cevap) {
+        alert("Lütfen bir cevap yaz.");
+        return;
+    }
+
+
+    button.disabled = true;
+    button.innerText = "Gönderiliyor...";
+
+
+    try {
+
+        const sonuc = await fetch(
+            SUPABASE_URL +
+            "/messages2?id=eq." + id,
+            {
+                method: "PATCH",
+
+                headers: {
+                    "apikey": SUPABASE_KEY,
+                    "Authorization":
+                        "Bearer " + SUPABASE_KEY,
+
+                    "Content-Type":
+                        "application/json",
+
+                    "Prefer":
+                        "return=minimal"
+                },
+
+                body: JSON.stringify({
+                    reply: cevap
+                })
+            }
+        );
+
+
+        if (!sonuc.ok) {
+
+            const hata = await sonuc.text();
+
+            console.log("Supabase cevap hatası:", hata);
+
+            alert(
+                "Cevap gönderilemedi:\n\n" +
+                hata
+            );
+
+            button.disabled = false;
+            button.innerText = "Gönder";
+
+            return;
+        }
+
+
+        /* Başarılı */
+
+        const cevapAlani =
+            document
+            .getElementById("card-" + id)
+            .querySelector(".cevap-alani");
+
+
+        cevapAlani.innerHTML =
+            '<div class="cevap">' +
+            '<b>Sen:</b><br>' +
+            guvenli(cevap) +
+            '</div>';
+
+
+        textarea.value = "";
+
+        button.disabled = false;
+        button.innerText = "Gönder";
+
+
+    } catch (error) {
+
+        console.log(error);
+
+        alert(
+            "Bağlantı hatası:\n\n" +
+            error
+        );
+
+        button.disabled = false;
+        button.innerText = "Gönder";
+    }
+}
+
+
+
+/*
+İlk açılış
+*/
+
+mesajlariGetir();
+
+
+/*
+5 saniyede bir yeni mesajları kontrol et.
+Artık textarea'lar yeniden oluşturulmadığı
+için yazdığın cevap KAYBOLMAYACAK.
+*/
+
+setInterval(mesajlariGetir, 5000);
+
+</script>
+
+</body>
+</html>
+```
